@@ -1,7 +1,7 @@
 /* Rodel-Mobility Service Worker: macht die App offline nutzbar */
-const VERSION = 'rodel-mobility-v2';
+const VERSION = 'rodel-mobility-v3';
 const SHELL = ['./','./index.html','./manifest.webmanifest',
-  './icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png','./icons/favicon-32.png'];
+  './icon-192.png','./icon-512.png','./icon-maskable-512.png','./favicon-32.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

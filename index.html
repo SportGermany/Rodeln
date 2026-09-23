@@ -8,8 +8,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>html{padding-top:env(safe-area-inset-top,0px)}img{max-width:100%}</style>
 <title>Rodel-Mobility</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1120,6 +1120,8 @@ function renderProg(){
     <h2>Einstellungen</h2>
     <div>
       ${isStandalone()?'':(deferredPrompt?`<div class="set"><span>App installieren<small>Eigenes Symbol auf dem Startbildschirm, Vollbild, funktioniert offline</small></span><button class="sbtn" id="instGo2">Installieren</button></div>`:'')}
+      <div class="set stack"><span>Installation prüfen<small>Zeigt, ob Chrome die App installieren kann und was fehlt</small></span><button class="sbtn" id="chkBtn">Jetzt prüfen</button></div>
+      <div id="chkOut" hidden></div>
       <div class="set stack"><span>Darstellung</span><div class="opts">${[['system','Auto'],['light','Hell'],['dark','Dunkel']].map(([k,l])=>`<button data-theme-set="${k}" class="${S.theme===k?'on':''}">${l}</button>`).join('')}</div></div>
       <div class="set stack"><span>Vorbereitung<small>Zeit zum Einnehmen der Position</small></span><div class="opts">${[3,5,10].map(v=>`<button data-prep="${v}" class="${S.prep===v?'on':''}">${v} s</button>`).join('')}</div></div>
       <div class="set stack"><span>Pause beim Seitenwechsel<small>Timer hält kurz an</small></span><div class="opts">${[0,3,5].map(v=>`<button data-sp="${v}" class="${S.switchPause===v?'on':''}">${v?v+' s':'Aus'}</button>`).join('')}</div></div>
@@ -1167,6 +1169,7 @@ $('#v-fortschritt').addEventListener('click',e=>{
   if(e.target.closest('#expBtn')){exportData();return;}
   if(e.target.closest('#impBtn')){$('#impFile').click();return;}
   if(e.target.closest('#instGo2')){doInstall();return;}
+  if(e.target.closest('#chkBtn')){checkInstall();return;}
 });
 
 /* =========================================================
@@ -1343,6 +1346,28 @@ $('#impFile').addEventListener('change',e=>{
   r.onload=()=>{try{const d=JSON.parse(r.result);if(!d||!Array.isArray(d.sessions))throw 0;S=Object.assign(structuredClone(DEF),d);save();applyTheme();renderTab();toast('Sicherung geladen: '+S.sessions.length+' Einheiten');}catch(err){toast('Datei ist keine Rodel-Mobility-Sicherung');}e.target.value='';};
   r.readAsText(f);
 });
+async function checkInstall(){
+  const out=$('#chkOut');out.hidden=false;out.innerHTML='<p style="padding:8px 0">Prüfe …</p>';
+  const R=[];const add=(ok,t,h)=>R.push({ok,t,h});
+  const host=location.hostname;
+  const preview=/claude|anthropic|usercontent/.test(host)||location.protocol==='file:'||location.protocol==='blob:';
+  if(preview){add(false,'Du bist nicht auf deiner GitHub-Adresse',location.protocol==='file:'?'Die Datei wurde direkt vom Handy geöffnet. Chrome installiert nur Apps von einer https-Adresse, also über GitHub Pages.':'Das ist die Vorschau in Claude. Installieren geht nur über deine GitHub-Adresse, z. B. https://NAME.github.io/rodel-mobility/');}
+  else add(window.isSecureContext,'Sichere Adresse (https)',window.isSecureContext?'':'Die Adresse muss mit https:// beginnen.');
+  let man=null;
+  try{const r=await fetch('manifest.webmanifest',{cache:'no-store'});if(r.ok)man=await r.json();}catch(e){}
+  add(!!man,'App-Beschreibung (manifest.webmanifest) gefunden',man?'':'Datei fehlt im Repository oder liegt in einem Unterordner. Sie muss neben index.html liegen.');
+  if(man){
+    let bad=[];
+    for(const ic of man.icons||[]){try{const r=await fetch(ic.src,{cache:'no-store'});if(!r.ok)bad.push(ic.src);}catch(e){bad.push(ic.src);}}
+    add(!bad.length,'App-Symbole erreichbar',bad.length?'Fehlt: '+bad.join(', ')+'. Diese Dateien neben index.html hochladen.':'');
+  }
+  let sw=false;
+  try{sw=!!(navigator.serviceWorker&&await navigator.serviceWorker.getRegistration());}catch(e){}
+  add(sw,'Offline-Modus (sw.js) aktiv',sw?'':'sw.js fehlt oder wurde noch nicht geladen. Seite einmal neu laden.');
+  if(isStandalone())add(true,'App ist bereits installiert','');
+  else add(!!deferredPrompt,'Chrome bietet die Installation an',deferredPrompt?'Tippe oben auf „Installieren“.':'Noch nicht. Wenn alles darüber grün ist: Seite neu laden, 30 Sekunden warten, dann Menü ⋮ → „App installieren“ oder „Zum Startbildschirm hinzufügen“.');
+  out.innerHTML='<ul class="entries" style="margin:6px 0 10px">'+R.map(x=>`<li style="align-items:flex-start"><span><b style="color:${x.ok?'var(--r-leg)':'var(--accent)'}">${x.ok?'✓':'✗'}</b> ${esc(x.t)}${x.h?`<small style="display:block;color:var(--muted)">${esc(x.h)}</small>`:''}</span></li>`).join('')+'</ul>';
+}
 function toast(t){const el=$('#toast');el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,2600);}
 try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',onTheme);}catch(e){}
 new MutationObserver(onTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
